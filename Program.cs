@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using PdfSharp.Pdf;
 
 namespace KeebTalentBook
 {
@@ -26,6 +27,8 @@ namespace KeebTalentBook
         private static string AD_PASSWORD;
         private static string AUTH_TYPE;
         private static bool SET_AUTHOR;
+        private static string DRIVE_NAME;
+        private static string DOWNLOAD_DIRECTORY;
         const string USER_AUTH = "user_authentication";
         const string APP_AUTH = "app_registration";
         const string TOKEN_AUTH = "auth_token";
@@ -47,6 +50,15 @@ namespace KeebTalentBook
 
             string listId = GetListId(siteId);
             Console.WriteLine($"List ID: {listId}");
+
+            string driveId = GetDriveId(siteId);
+            Console.WriteLine($"Drive ID: {driveId}");
+
+            var driveItems = GetDriveItems(siteId, driveId);
+            Console.WriteLine($"Retrieved Drive Items");
+
+            DownloadFiles(driveItems);
+            GetPdfFileInfo();
 
             SPListDefinition listColumns = GetListDefinition(siteId, listId);
             SPColumnDefinition createdByColumn = new SPColumnDefinition();
@@ -116,6 +128,8 @@ namespace KeebTalentBook
             Console.WriteLine("Application has completed. Press any key to exit");
             Console.ReadLine();
         }
+
+
 
         #region Graph API
         private static void AuthenticateGraphApi()
@@ -214,6 +228,121 @@ namespace KeebTalentBook
 
         }
 
+        private static string GetDriveId(string siteId, string driveName = null)
+        {
+            if (driveName == null)
+                driveName = DRIVE_NAME;
+
+            string driveId = null;
+
+            var siteDrives = GetSiteDrives(siteId);
+
+            if(siteDrives != null)
+            {
+                var drive = siteDrives.Where(d => d["name"].ToString() == driveName).FirstOrDefault();
+
+                if(drive != null)
+                {
+                    driveId = drive["id"].ToString();
+                }
+            }
+
+            return driveId;
+        }
+
+        private static JToken GetSiteDrives(string siteId)
+        {
+            var url = $"{GRAPH_URL}/sites/{siteId}/drives";
+
+            HttpWebRequest request = GetWebRequest(url, "GET");
+
+            string response = GetWebResponse(request);
+
+            JObject json = (JObject)JsonConvert.DeserializeObject(response);
+
+            JToken jsonValue = null;
+
+            if (json.ContainsKey("value"))
+            {
+                jsonValue = json["value"];
+            }
+
+            return jsonValue;
+        }
+
+        private static JObject GetDriveItems(string siteId, string driveId)
+        {
+            var url = $"{GRAPH_URL}/sites/{siteId}/drives/{driveId}/root/children";
+
+            HttpWebRequest request = GetWebRequest(url, "GET");
+
+            string response = GetWebResponse(request);
+
+            JObject json = (JObject)JsonConvert.DeserializeObject(response);
+
+            if (!json.ContainsKey("value"))
+            {
+                return null;
+            }
+
+            return json; ;
+        }
+
+        private static void DownloadFiles(JObject driveItems)
+        {
+            foreach (JObject item in driveItems["value"])
+            {
+                if (item.ContainsKey("file"))
+                {
+                    var downloadUrl = item["@microsoft.graph.downloadUrl"].ToString();
+                    var fileName = item["name"].ToString();
+                    var success = FileDownloader.DownloadFile(downloadUrl, $"C:\\Temp\\{fileName}", 10000);
+                }
+            }
+        }
+
+        private static void GetPdfFileInfo()
+        {
+            if (!Directory.Exists(DOWNLOAD_DIRECTORY))
+                return;
+
+            string[] pdfFileNames = Directory.GetFiles(DOWNLOAD_DIRECTORY, "*.pdf");
+
+            string filePath = $"{DOWNLOAD_DIRECTORY}//AuthorOutput.csv";
+
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+
+            using (StreamWriter writer = new StreamWriter(new FileStream(filePath, FileMode.Create, FileAccess.Write)))
+            {
+                char delimeter = ',';
+                string newLine = Environment.NewLine;
+
+                string[] header = { "FileName", "CreatedDate", "Author", "Creator" };
+                writer.WriteLine(String.Join(delimeter, header));
+
+                foreach (string fileName in pdfFileNames)
+                {
+                    FileInfo file = new FileInfo(fileName);
+
+                    PdfDocument pdf = new PdfDocument(fileName);
+                    Console.WriteLine("--------------------------------------------------------------");
+                    Console.WriteLine("Author: {0}", pdf.Info.Author);
+                    Console.WriteLine("CreationDate: {0}", pdf.Info.CreationDate);
+                    Console.WriteLine("Creator: {0}", pdf.Info.Creator);
+                    Console.WriteLine("Keywords: {0}", pdf.Info.Keywords);
+
+                    string[] line = { pdf.Info.Title, pdf.Info.CreationDate.ToString(), pdf.Info.Author, pdf.Info.Creator };
+                    writer.WriteLine(String.Join(delimeter, line));
+                }
+
+                writer.Close();
+            }
+
+        }
+
         private static SPListDefinition GetListDefinition(string siteId, string listId)
         {
             var url = $"{GRAPH_URL}/sites/{siteId}/lists/{listId}/columns";
@@ -272,10 +401,6 @@ namespace KeebTalentBook
             SPList list = (SPList)System.Text.Json.JsonSerializer.Deserialize(response, typeof(SPList));
             List<SPListItem> listItems = list.value.Where(a => a.fields.EMail != null).ToList();
             return listItems;
-
-            //JObject list = (JObject)JsonConvert.DeserializeObject(response);
-
-            //return list["value"];
         }
 
         private static string GetCreatedByValue(KnowledgePortal matchItem, string siteId)
@@ -383,12 +508,12 @@ namespace KeebTalentBook
             SITE_NAME = config.GetValue<string>("spSite");
             LIST_NAME = config.GetValue<string>("spList");
             SET_AUTHOR = config.GetValue<bool>("setAuthor");
-
+            DRIVE_NAME = config.GetValue<string>("driveName");
+            DOWNLOAD_DIRECTORY = config.GetValue<string>("downloadDirectory");
             var auth = config.GetSection("authentication");
             AUTH_TYPE = auth.GetValue<string>("type");
             AD_TENANT = auth.GetValue<string>("tenant");
             AD_CLIENT_ID = auth.GetValue<string>("client_id");
-
 
             if (AUTH_TYPE == USER_AUTH)
             {
