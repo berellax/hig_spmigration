@@ -10,7 +10,7 @@ namespace KeebTalentBook
 
         static void Main(string[] args)
         {
-            Console.WriteLine("Select the script that you would like to run.");
+            Console.WriteLine("Select the workload that you would like to run.");
             Console.WriteLine("(1) Update Created Date");
             Console.WriteLine("(2) Update Author Value");
             Console.WriteLine("(3) Export Author Information");
