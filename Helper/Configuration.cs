@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using System;
 
-namespace KeebTalentBook
+namespace HIGKnowledgePortal
 {
     public class Configuration
     {

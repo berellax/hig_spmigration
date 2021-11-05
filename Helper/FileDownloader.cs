@@ -4,7 +4,7 @@ using System.IO;
 using System.Net;
 using System.Threading;
 
-namespace KeebTalentBook
+namespace HIGKnowledgePortal
 {
     class FileDownloader
     {

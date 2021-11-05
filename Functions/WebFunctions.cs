@@ -2,7 +2,7 @@
 using System.Net;
 using System.Text;
 
-namespace KeebTalentBook
+namespace HIGKnowledgePortal
 {
     static class WebFunctions
     {

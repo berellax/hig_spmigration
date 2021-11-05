@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace KeebTalentBook
+namespace HIGKnowledgePortal
 {
     public class Program
     {

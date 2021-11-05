@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace KeebTalentBook
+namespace HIGKnowledgePortal
 {
     public class SPList
     {
