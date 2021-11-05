@@ -10,17 +10,14 @@ namespace KeebTalentBook
 {
     public class GraphApi
     {
-        const string USER_AUTH = "user_authentication";
-        const string APP_REGISTRATION = "app_registration";
-        const string TOKEN_AUTH = "auth_token";
         private readonly string _graphUrl;
 
         /// <summary>
         /// Constructor will authenticate the Graph API
         /// </summary>
-        public GraphApi()
+        public GraphApi(AuthenticationType authType)
         {
-            Configuration.AuthToken = AuthenticateGraphApi();
+            Configuration.AuthToken = AuthenticateGraphApi(authType);
             _graphUrl = Configuration.GraphUrl;
         }
 
@@ -28,12 +25,12 @@ namespace KeebTalentBook
         /// Authenticate to the Graph API based on the AuthType selected
         /// </summary>
         /// <returns></returns>
-        private string AuthenticateGraphApi()
+        private string AuthenticateGraphApi(AuthenticationType authType)
         {
             string url = $"https://login.windows.net/{Configuration.AuthTenant}/oauth2/token/";
             string postBody = string.Empty;
 
-            if (Configuration.AuthType == APP_REGISTRATION)
+            if (authType == AuthenticationType.AppRegistration)
             {
                 postBody = $"&client_id={Configuration.AuthClient}";
                 postBody += @"&grant_type=client_credentials";
@@ -41,18 +38,26 @@ namespace KeebTalentBook
                 postBody += @"&resource=https%3A%2F%2Fgraph.microsoft.com%2F";
                 postBody += "&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default";
             }
-            else if (Configuration.AuthType == USER_AUTH)
+            else if (authType == AuthenticationType.UserAuthentication)
             {
+                Console.WriteLine("Username: ");
+                var userName = Console.ReadLine();
+
+                Console.WriteLine("Password: ");
+                var password = Console.ReadLine();
+
                 postBody = $"&client_id={Configuration.AuthClient}";
                 postBody += $"&grant_type=password";
                 postBody += @"&resource=https%3A%2F%2Fgraph.microsoft.com%2F";
-                postBody += $"&username={Configuration.AuthUsername}";
-                postBody += $"&password={Configuration.AuthPassword}";
+                postBody += $"&username={userName}";
+                postBody += $"&password={password}";
                 postBody += $"&scope=openid";
             }
-            else if (Configuration.AuthType == TOKEN_AUTH)
+            else if (authType == AuthenticationType.AuthenticationToken)
             {
-                return Configuration.AuthToken;
+                Console.WriteLine("Paste Graph API Authentication Token Here:");
+                var authToken = Console.ReadLine();
+                return authToken;
             }
             else
             {
@@ -77,8 +82,7 @@ namespace KeebTalentBook
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"An error occurred authenticating your request. {ex.Message}. Press any key to close.");
-                Console.ReadLine();
+                Console.WriteLine($"An error occurred authenticating your request. {ex.Message}.");
                 throw new Exception("An error occurred authenticating your request");
             }
         }
@@ -212,7 +216,7 @@ namespace KeebTalentBook
             return jsonValue;
         }
 
-        public JObject GetDriveItems(string siteId, string driveId)
+        public JToken GetDriveItems(string siteId, string driveId)
         {
             var url = $"{_graphUrl}/sites/{siteId}/drives/{driveId}/root/children";
 
@@ -227,7 +231,20 @@ namespace KeebTalentBook
                 return null;
             }
 
-            return json; ;
+            JToken jsonValue = json["value"];
+
+            while (json.ContainsKey("@odata.nextLink"))
+            {
+                request = WebFunctions.GetWebRequest(json["@odata.nextLink"].ToString(), "GET");
+
+                response = WebFunctions.GetWebResponse(request);
+
+                json = JsonConvert.DeserializeObject<JObject>(response);
+
+                jsonValue.Append(json["value"]);
+            }
+
+            return jsonValue; ;
         }
 
         public SPListDefinition GetListDefinition(string siteId, string listId)
@@ -284,7 +301,7 @@ namespace KeebTalentBook
             JObject json = new JObject();
             json["Created"] = createdOn;
 
-            if (Configuration.SetAuthor && createdBy != null)
+            if (createdBy != null)
                 json["AuthorLookupId"] = createdBy;
 
             var content = JsonConvert.SerializeObject(json);
@@ -293,12 +310,12 @@ namespace KeebTalentBook
             string webResponse = WebFunctions.GetWebResponse(request);
         }
 
-        public int DownloadFiles(JObject driveItems)
+        public int DownloadFiles(JToken driveItems)
         {
             int i = 0;
-            foreach (JObject item in driveItems["value"])
+            foreach (var item in driveItems)
             {
-                if (item.ContainsKey("file"))
+                if (item["file"] != null && item["name"] != null && item["name"].ToString().Contains(".pdf"))
                 {
                     var downloadUrl = item["@microsoft.graph.downloadUrl"].ToString();
                     var fileName = item["name"].ToString();
@@ -342,5 +359,12 @@ namespace KeebTalentBook
             //return firstValue["id"].ToString();
         }
 
+    }
+
+    public enum AuthenticationType
+    {
+        AppRegistration,
+        UserAuthentication,
+        AuthenticationToken
     }
 }

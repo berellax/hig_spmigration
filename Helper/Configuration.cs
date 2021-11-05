@@ -11,13 +11,8 @@ namespace KeebTalentBook
         public static string SharePointOrg => (string)GetConfigValue("spTenant");
         public static string SiteName => (string)GetConfigValue("spSite");
         public static string ListName => (string)GetConfigValue("spList");
-        public static bool SetAuthor => (bool)GetConfigValue("setAuthor", TypeCode.Boolean);
-        public static bool SetCreated => (bool)GetConfigValue("setCreated", TypeCode.Boolean);
         public static string DriveName => (string)GetConfigValue("driveName");
         public static string DownloadDirectory => (string)GetConfigValue("downloadDirectory");
-        public static string AuthType => (string)GetConfigValue("type", "authentication");
-        public static string AuthUsername => (string)GetConfigValue("username", "authentication");
-        public static string AuthPassword => (string)GetConfigValue("password", "authentication");
         public static string AuthTenant => (string)GetConfigValue("tenant", "authentication");
         public static string AuthClient => (string)GetConfigValue("client_id", "authentication");
         public static string AuthClientSecret => (string)GetConfigValue("client_secret", "authentication");

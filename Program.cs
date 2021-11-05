@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.IO;
+
 namespace KeebTalentBook
 {
     public class Program
@@ -12,17 +10,15 @@ namespace KeebTalentBook
 
         static void Main(string[] args)
         {
-            Console.WriteLine("Select the routine that you would like to run.");
-            Console.WriteLine("(1) Update Created Date.");
-            Console.WriteLine("(2) Update Author Value.");
+            Console.WriteLine("Select the script that you would like to run.");
+            Console.WriteLine("(1) Update Created Date");
+            Console.WriteLine("(2) Update Author Value");
             Console.WriteLine("(3) Export Author Information");
 
             ConsoleKey response = Console.ReadKey(false).Key;
 
             //Instantiate Graph API
-            _graphApi = new GraphApi();
-            Console.WriteLine();
-            Console.WriteLine("Graph API authentication complete.");
+            AuthenticateGraphApi();
 
             //Execute method based on option selected
             if (response == ConsoleKey.D1)
@@ -31,7 +27,9 @@ namespace KeebTalentBook
             }
             else if(response == ConsoleKey.D2)
             {
-                UpdateAuthor();
+                Console.WriteLine("This script is not available.");
+                Environment.Exit(-1);
+                //UpdateAuthor();
             }
             else if(response == ConsoleKey.D3)
             {
@@ -47,6 +45,39 @@ namespace KeebTalentBook
         }
 
         #region Primary Methods
+        private static void AuthenticateGraphApi()
+        {
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine("Select the authentication method for Graph API.");
+            Console.WriteLine("(1) App Registration (Client Id / Client Secret)");
+            Console.WriteLine("(2) User Authentication (Username / Password");
+            Console.WriteLine("(3) Authentication Token (Copy from Graph Explorer)");
+
+            ConsoleKey response = Console.ReadKey(false).Key;
+            Console.WriteLine();
+            Console.WriteLine();
+
+            switch (response)
+            {
+                case ConsoleKey.D1:
+                    _graphApi = new GraphApi(AuthenticationType.AppRegistration);
+                    break;
+                case ConsoleKey.D2:
+                    _graphApi = new GraphApi(AuthenticationType.UserAuthentication);
+                    break;
+                case ConsoleKey.D3:
+                    _graphApi = new GraphApi(AuthenticationType.AuthenticationToken);
+                    break;
+                default:
+                    Console.WriteLine("Invalid Entry. Please try again.");
+                    AuthenticateGraphApi();
+                    break;
+            }
+
+            Console.WriteLine("Graph API authentication complete.");
+
+        }
         /// <summary>
         /// Updates the Created Date of items in the list based on the provided CSV file
         /// </summary>
@@ -120,36 +151,37 @@ namespace KeebTalentBook
             GetPdfFileInfo();
         }
 
+        /// <summary>
+        /// Update the author value in SharePoint
+        /// </summary>
         private static void UpdateAuthor()
         {
             throw new NotImplementedException();
 
-            GraphApi graphApi = new GraphApi();
-
-            string siteId = graphApi.GetSiteId();
+            string siteId = _graphApi.GetSiteId();
             Console.WriteLine($"Site ID: {siteId}");
 
-            string driveId = graphApi.GetDriveId(siteId);
+            string driveId = _graphApi.GetDriveId(siteId);
             Console.WriteLine($"Drive ID: {driveId}");
 
-            string listId = graphApi.GetListId(siteId);
+            string listId = _graphApi.GetListId(siteId);
             Console.WriteLine($"List ID: {listId}");
 
-            var driveItems = graphApi.GetDriveItems(siteId, driveId);
+            var driveItems = _graphApi.GetDriveItems(siteId, driveId);
             Console.WriteLine($"Retrieved Drive Items");
 
-            graphApi.DownloadFiles(driveItems);
+            _graphApi.DownloadFiles(driveItems);
             GetPdfFileInfo();
 
-            SPListDefinition listColumns = graphApi.GetListDefinition(siteId, listId);
+            SPListDefinition listColumns = _graphApi.GetListDefinition(siteId, listId);
             SPColumnDefinition createdByColumn = new SPColumnDefinition();
 
-            createdByColumn = graphApi.GetColumnDefinition(listColumns, "author");
+            createdByColumn = _graphApi.GetColumnDefinition(listColumns, "author");
             Console.WriteLine($"Created By Column Id: {createdByColumn.id}");
 
             if (createdByColumn.readOnly)
             {
-                graphApi.SetColumnReadOnly(siteId, listId, createdByColumn.id, false);
+                _graphApi.SetColumnReadOnly(siteId, listId, createdByColumn.id, false);
                 Console.WriteLine($"Column {createdByColumn.name} ReadOnly flag has been set to false");
             }
             else
@@ -179,7 +211,7 @@ namespace KeebTalentBook
             //    }
             //}
 
-            graphApi.SetColumnReadOnly(siteId, listId, createdByColumn.id, true);
+            _graphApi.SetColumnReadOnly(siteId, listId, createdByColumn.id, true);
             Console.WriteLine($"Column {createdByColumn.name} ReadOnly flag has been set to true");
         }
 
