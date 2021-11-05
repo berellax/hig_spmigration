@@ -45,6 +45,9 @@ namespace HIGKnowledgePortal
         }
 
         #region Primary Methods
+        /// <summary>
+        /// Authenticate and get Access Token for Graph API based on Auth Type
+        /// </summary>
         private static void AuthenticateGraphApi()
         {
             Console.WriteLine();
