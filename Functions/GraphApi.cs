@@ -250,7 +250,7 @@ namespace KeebTalentBook
             return columnDefinition;
         }
 
-        public void SetColumnReadOnly(string siteId, string listId, string columnId, string targetValue)
+        public void SetColumnReadOnly(string siteId, string listId, string columnId, bool targetValue)
         {
             var url = $"{_graphUrl}/sites/{siteId}/lists/{listId}/columns/{columnId}";
 
@@ -293,8 +293,9 @@ namespace KeebTalentBook
             string webResponse = WebFunctions.GetWebResponse(request);
         }
 
-        public void DownloadFiles(JObject driveItems)
+        public int DownloadFiles(JObject driveItems)
         {
+            int i = 0;
             foreach (JObject item in driveItems["value"])
             {
                 if (item.ContainsKey("file"))
@@ -302,8 +303,14 @@ namespace KeebTalentBook
                     var downloadUrl = item["@microsoft.graph.downloadUrl"].ToString();
                     var fileName = item["name"].ToString();
                     var success = FileDownloader.DownloadFile(downloadUrl, $"C:\\Temp\\{fileName}", 10000);
+                    if (success)
+                    {
+                        i++;
+                    }
                 }
             }
+
+            return i;
         }
 
         public string GetCreatedByValue(KnowledgePortal matchItem, string siteId)
