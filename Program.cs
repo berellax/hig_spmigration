@@ -1,6 +1,10 @@
-﻿using System;
+﻿using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.SharePoint;
+using Microsoft.SharePoint.Client;
+using System.Security;
 
 namespace HIGKnowledgePortal
 {
@@ -12,8 +16,9 @@ namespace HIGKnowledgePortal
         {
             Console.WriteLine("Select the workload that you would like to run.");
             Console.WriteLine("(1) Update Created Date");
-            Console.WriteLine("(2) Update Author Value");
+            Console.WriteLine("(2) Update Author Text Value");
             Console.WriteLine("(3) Export Author Information");
+            Console.WriteLine("(4) Update Created By/Author User Value");
 
             ConsoleKey response = Console.ReadKey(false).Key;
 
@@ -21,23 +26,25 @@ namespace HIGKnowledgePortal
             AuthenticateGraphApi();
 
             //Execute method based on option selected
-            if (response == ConsoleKey.D1)
+            switch (response)
             {
-                UpdateCreatedDate();
-            }
-            else if(response == ConsoleKey.D2)
-            {
-                Console.WriteLine("This script is not available.");
-                Environment.Exit(-1);
-                //UpdateAuthor();
-            }
-            else if(response == ConsoleKey.D3)
-            {
-                ExportAuthorInfo();
-            }
-            else
-            {
-                return;
+                case ConsoleKey.D1:
+                    UpdateCreatedDate();
+                    break;
+                case ConsoleKey.D2:
+                    UpdateLegacyAuthorValue();
+                    break;
+                case ConsoleKey.D3:
+                    ExportAuthorInfo();
+                    break;
+                case ConsoleKey.D4:
+                    
+                    //SetAuthor();
+                    Console.WriteLine("Update Created By/Author User Value workload not yet implemented.");
+                    break;
+                default:
+                    Console.WriteLine("Please select a valid option.");
+                    break;
             }
 
             Console.WriteLine("Application has completed. Press any key to exit");
@@ -54,7 +61,7 @@ namespace HIGKnowledgePortal
             Console.WriteLine();
             Console.WriteLine("Select the authentication method for Graph API.");
             Console.WriteLine("(1) App Registration (Client Id / Client Secret)");
-            Console.WriteLine("(2) User Authentication (Username / Password");
+            Console.WriteLine("(2) User Authentication (Username / Password)");
             Console.WriteLine("(3) Authentication Token (Copy from Graph Explorer)");
 
             ConsoleKey response = Console.ReadKey(false).Key;
@@ -105,7 +112,7 @@ namespace HIGKnowledgePortal
             SetColumnReadOnly(siteId, listId, createdColumnName, false);
 
             //Get the all items in the list. Includes paging.
-            List<SPListItem> listItems = _graphApi.GetListItems(siteId, listId);
+            List<GraphListItem> listItems = _graphApi.GetListItems(siteId, listId);
             Console.WriteLine($"List {Configuration.ListName} has {listItems.Count} items with a Title.");
 
             //Loop through items and update the Created On value from the CSV file based on matching Title.
@@ -117,9 +124,11 @@ namespace HIGKnowledgePortal
                 //If there is a match, update the Created value based on the value in the CSV file
                 if (matchItem != null)
                 {
-                    var createdOn = matchItem.Created;
-                    _graphApi.UpdateListItem(siteId, listId, item.id, createdOn, null);
-                    Console.WriteLine($"Updated Item with ID: {item.id} | Name: {item.fields.Title} | Created: {createdOn}");
+                    JObject json = new JObject();
+                    json["Created"] = matchItem.Created;
+
+                    _graphApi.UpdateListItem(siteId, listId, item.id, json);
+                    Console.WriteLine($"Updated Item with ID: {item.id} | Name: {item.fields.Title} | Created: {matchItem.Created}");
                 }
                 else
                 {
@@ -151,61 +160,67 @@ namespace HIGKnowledgePortal
             var downloadedFiles = _graphApi.DownloadFiles(driveItems);
             Console.WriteLine($"Downloaded {downloadedFiles} files to local drive.");
 
-            GetPdfFileInfo();
+            var fileInfo = GetPdfFileInfo();
         }
 
         /// <summary>
         /// Update the author value in SharePoint
         /// </summary>
-        private static void UpdateAuthor()
+        private static void UpdateLegacyAuthorValue()
         {
-            throw new NotImplementedException();
-
             string siteId = _graphApi.GetSiteId();
             Console.WriteLine($"Site ID: {siteId}");
-
-            string driveId = _graphApi.GetDriveId(siteId);
-            Console.WriteLine($"Drive ID: {driveId}");
 
             string listId = _graphApi.GetListId(siteId);
             Console.WriteLine($"List ID: {listId}");
 
+            string driveId = _graphApi.GetDriveId(siteId);
+            Console.WriteLine($"Drive ID: {driveId}");
+
             var driveItems = _graphApi.GetDriveItems(siteId, driveId);
             Console.WriteLine($"Retrieved Drive Items");
 
-            _graphApi.DownloadFiles(driveItems);
-            GetPdfFileInfo();
+            var downloadedFiles = _graphApi.DownloadFiles(driveItems);
+            Console.WriteLine($"Downloaded {downloadedFiles} files to local drive.");
 
-            SPListDefinition listColumns = _graphApi.GetListDefinition(siteId, listId);
-            SPColumnDefinition createdByColumn = new SPColumnDefinition();
+            List<PdfDoc> fileInfo = GetPdfFileInfo();
 
-            createdByColumn = _graphApi.GetColumnDefinition(listColumns, "author");
-            Console.WriteLine($"Created By Column Id: {createdByColumn.id}");
+            //Get the all items in the list. Includes paging.
+            List<GraphListItem> listItems = _graphApi.GetListItems(siteId, listId);
+            Console.WriteLine($"List {Configuration.ListName} has {listItems.Count} items with a Title.");
 
-            if (createdByColumn.readOnly)
+            foreach (var item in listItems)
             {
-                _graphApi.SetColumnReadOnly(siteId, listId, createdByColumn.id, false);
-                Console.WriteLine($"Column {createdByColumn.name} ReadOnly flag has been set to false");
-            }
-            else
-            {
-                Console.WriteLine($"Column {createdByColumn.name} ReadOnly flag is already false");
+                //Match the title of the list item to the name of the PDF documents
+                var matchItem = fileInfo.Where(a => a.FileName.ToLower() == item.fields.Title.ToLower()).FirstOrDefault();
+
+                //If there is a match, update the Created value based on the value in the CSV file
+                if (matchItem != null)
+                {
+                    JObject json = new JObject();
+                    json["LegacyAuthor"] = matchItem.Author;
+
+                    _graphApi.UpdateListItem(siteId, listId, item.id, json);
+                    Console.WriteLine($"Updated Item with ID: {item.id} | Name: {item.fields.Title} | Author: {matchItem.Author}");
+                }
             }
 
+
+            ////Get the all items in the list. Includes paging.
+            //List<SPListItem> listItems = _graphApi.GetListItems(siteId, listId);
+            //Console.WriteLine($"List {Configuration.ListName} has {listItems.Count} items with a Title.");
+
+            ////Loop through items and update the Created On value from the CSV file based on matching Title.
             //foreach (var item in listItems)
             //{
+            //    //Match the title of the list item to the Name field in the CSV file.
             //    var matchItem = knowledgePortal.Where(a => a.Name.ToLower() == item.fields.Title.ToLower()).FirstOrDefault();
+
+            //    //If there is a match, update the Created value based on the value in the CSV file
             //    if (matchItem != null)
             //    {
-            //        string createdBy = null;
-
-            //        if (Configuration.SetAuthor)
-            //        {
-            //            matchItem.CreatedBy = "backup@keeebbob.onmicrosoft.com";
-            //            createdBy = graphApi.GetCreatedByValue(matchItem, siteId);
-            //        }
-
-            //        graphApi.UpdateListItem(siteId, listId, item.id, createdOn, createdBy);
+            //        var createdOn = matchItem.Created;
+            //        _graphApi.UpdateListItem(siteId, listId, item.id, createdOn, null);
             //        Console.WriteLine($"Updated Item with ID: {item.id} | Name: {item.fields.Title} | Created: {createdOn}");
             //    }
             //    else
@@ -214,9 +229,84 @@ namespace HIGKnowledgePortal
             //    }
             //}
 
-            _graphApi.SetColumnReadOnly(siteId, listId, createdByColumn.id, true);
-            Console.WriteLine($"Column {createdByColumn.name} ReadOnly flag has been set to true");
+
+
+            //SPListDefinition listColumns = _graphApi.GetListDefinition(siteId, listId);
+            //SPColumnDefinition createdByColumn = new SPColumnDefinition();
+
+            //createdByColumn = _graphApi.GetColumnDefinition(listColumns, "author");
+            //Console.WriteLine($"Created By Column Id: {createdByColumn.id}");
+
+            //if (createdByColumn.readOnly)
+            //{
+            //    _graphApi.SetColumnReadOnly(siteId, listId, createdByColumn.id, false);
+            //    Console.WriteLine($"Column {createdByColumn.name} ReadOnly flag has been set to false");
+            //}
+            //else
+            //{
+            //    Console.WriteLine($"Column {createdByColumn.name} ReadOnly flag is already false");
+            //}
+
+            ////foreach (var item in listItems)
+            ////{
+            ////    var matchItem = knowledgePortal.Where(a => a.Name.ToLower() == item.fields.Title.ToLower()).FirstOrDefault();
+            ////    if (matchItem != null)
+            ////    {
+            ////        string createdBy = null;
+
+            ////        if (Configuration.SetAuthor)
+            ////        {
+            ////            matchItem.CreatedBy = "backup@keeebbob.onmicrosoft.com";
+            ////            createdBy = graphApi.GetCreatedByValue(matchItem, siteId);
+            ////        }
+
+            ////        graphApi.UpdateListItem(siteId, listId, item.id, createdOn, createdBy);
+            ////        Console.WriteLine($"Updated Item with ID: {item.id} | Name: {item.fields.Title} | Created: {createdOn}");
+            ////    }
+            ////    else
+            ////    {
+            ////        Console.WriteLine($"Skipped Item with ID: {item.id} | Name: {item.fields.Title} | Not found in CSV Data.");
+            ////    }
+            ////}
+
+            //_graphApi.SetColumnReadOnly(siteId, listId, createdByColumn.id, true);
+            //Console.WriteLine($"Column {createdByColumn.name} ReadOnly flag has been set to true");
         }
+
+        private static void SetAuthor()
+        {
+            Uri uri = new Uri("https://keeebbob.sharepoint.com/sites/HIGWorkSite");
+            string password = "Oktoberfest01!";
+            string userName = "shlomi@keeebbob.onmicrosoft.com";
+            SecureString secureString = new SecureString();
+            password.ToList().ForEach(secureString.AppendChar);
+
+            AuthenticationManager authMgr = new AuthenticationManager();
+            ClientContext context = authMgr.GetContext(uri, userName, secureString);
+
+            List list = context.Web.Lists.GetByTitle("Knowledge Portal Target");
+            CamlQuery camlQuery = new CamlQuery();
+            camlQuery.ViewXml =
+                @"<View>
+                    <Query>
+                    </Query>
+                  </View>";
+            ListItemCollection items = list.GetItems(camlQuery);
+            context.Load(items);
+            context.ExecuteQuery();
+
+            User authorUser = context.Web.EnsureUser("josh@keeebbob.onmicrosoft.com");
+            context.Load(authorUser);
+            context.ExecuteQuery();
+
+            foreach(var item in items)
+            {
+                item["Author"] = authorUser;
+                item.Update();
+            }
+
+            context.ExecuteQuery();
+        } 
 
         #endregion Primary Methods
 
@@ -253,7 +343,7 @@ namespace HIGKnowledgePortal
         /// <summary>
         /// Get file info for PDF documents and export to a CSV file
         /// </summary>
-        private static void GetPdfFileInfo()
+        private static List<PdfDoc> GetPdfFileInfo()
         {
             string[] docNames = PdfDoc.GetPdfDocumentsFromDirectory(Configuration.DownloadDirectory);
 
@@ -270,18 +360,10 @@ namespace HIGKnowledgePortal
 
             string outputFile = PdfDoc.ExportPdfInfoToCsv(pdfDocuments);
             Console.WriteLine("Pdf Metadata Exported to {0} for {1} PDF Documents.", outputFile, pdfDocuments.Count);
+
+            return pdfDocuments;
         }
 
         #endregion Helper Methods
-
-
-
-
     }
-
-    
-
-
-
-    
 }

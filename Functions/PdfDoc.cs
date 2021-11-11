@@ -16,6 +16,8 @@ namespace HIGKnowledgePortal
         public DateTime CreationDate { get; set; }
         public string Keywords { get; set; }
         public bool Error { get; set; }
+        public string FilePath { get; set; }
+        public string  FileName { get; set; }
 
         public PdfDoc()
         {
@@ -35,6 +37,8 @@ namespace HIGKnowledgePortal
                     this.Creator = pdf.Info.Creator;
                     this.CreationDate = pdf.Info.CreationDate;
                     this.Keywords = pdf.Info.Keywords;
+                    this.FilePath = pdf.FullPath;
+                    this.FileName = Path.GetFileName(pdf.FullPath);
                 }
             }
             catch (Exception ex)

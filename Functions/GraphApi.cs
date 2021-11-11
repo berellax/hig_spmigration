@@ -140,7 +140,7 @@ namespace HIGKnowledgePortal
         /// <param name="siteId"></param>
         /// <param name="listId"></param>
         /// <returns></returns>
-        public List<SPListItem> GetListItems(string siteId, string listId)
+        public List<GraphListItem> GetListItems(string siteId, string listId)
         {
             var url = $"{_graphUrl}/sites/{siteId}/lists/{listId}/items?expand=fields(select=Title)";
 
@@ -150,7 +150,7 @@ namespace HIGKnowledgePortal
 
             JObject responseJson = JsonConvert.DeserializeObject<JObject>(response);
 
-            SPList list = (SPList)System.Text.Json.JsonSerializer.Deserialize(response, typeof(SPList));
+            GraphList list = (GraphList)System.Text.Json.JsonSerializer.Deserialize(response, typeof(GraphList));
 
             while (responseJson.ContainsKey("@odata.nextLink"))
             {
@@ -160,12 +160,12 @@ namespace HIGKnowledgePortal
 
                 responseJson = JsonConvert.DeserializeObject<JObject>(response);
 
-                SPList newList = (SPList)System.Text.Json.JsonSerializer.Deserialize(response, typeof(SPList));
+                GraphList newList = (GraphList)System.Text.Json.JsonSerializer.Deserialize(response, typeof(GraphList));
 
                 list.value.AddRange(newList.value);
             }
 
-            List<SPListItem> listItems = list.value.Where(a => a.fields.Title != null).ToList();
+            List<GraphListItem> listItems = list.value.Where(a => a.fields.Title != null).ToList();
             return listItems;
         }
 
@@ -281,7 +281,7 @@ namespace HIGKnowledgePortal
             string response = WebFunctions.GetWebResponse(request);
         }
 
-        public List<SPListItem> GetUserListItems(string siteId, string listId)
+        public List<GraphListItem> GetUserListItems(string siteId, string listId)
         {
             var url = $"{_graphUrl}/sites/{siteId}/lists/{listId}/items?expand=fields(select=EMail,Name)";
 
@@ -289,22 +289,22 @@ namespace HIGKnowledgePortal
 
             string response = WebFunctions.GetWebResponse(request);
 
-            SPList list = (SPList)System.Text.Json.JsonSerializer.Deserialize(response, typeof(SPList));
-            List<SPListItem> listItems = list.value.Where(a => a.fields.EMail != null).ToList();
+            GraphList list = (GraphList)System.Text.Json.JsonSerializer.Deserialize(response, typeof(GraphList));
+            List<GraphListItem> listItems = list.value.Where(a => a.fields.EMail != null).ToList();
             return listItems;
         }
 
-        public void UpdateListItem(string siteId, string listId, string itemId, string createdOn, string createdBy)
+        public void UpdateListItem(string siteId, string listId, string itemId, JObject updateObject)
         {
             var url = $"{_graphUrl}/sites/{siteId}/lists/{listId}/items/{itemId}/fields";
 
-            JObject json = new JObject();
-            json["Created"] = createdOn;
+            if(updateObject == null)
+            {
+                Console.WriteLine("Update values not specified.");
+                return;
+            }
 
-            if (createdBy != null)
-                json["AuthorLookupId"] = createdBy;
-
-            var content = JsonConvert.SerializeObject(json);
+            var content = JsonConvert.SerializeObject(updateObject);
 
             HttpWebRequest request = WebFunctions.GetWebRequest(url, "PATCH", content);
             string webResponse = WebFunctions.GetWebResponse(request);
@@ -334,9 +334,9 @@ namespace HIGKnowledgePortal
         {
             var listId = GetListId(siteId, "User Information List");
             //var columns = GetListDefinition(siteId, listId);
-            List<SPListItem> userList = GetUserListItems(siteId, listId);
+            List<GraphListItem> userList = GetUserListItems(siteId, listId);
 
-            SPListItem createdByUser = userList.Where(a => a.fields.EMail.ToLower() == matchItem.CreatedBy.ToLower()).FirstOrDefault();
+            GraphListItem createdByUser = userList.Where(a => a.fields.EMail.ToLower() == matchItem.CreatedBy.ToLower()).FirstOrDefault();
 
             if (createdByUser != null)
             {
